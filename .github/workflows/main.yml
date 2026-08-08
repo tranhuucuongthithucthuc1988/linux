@@ -7,68 +7,62 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Tools and Extract ISO
+      - name: Install Dependencies
         run: |
           sudo apt update
-          sudo apt install -y squashfs-tools genisoimage wget
-          # Tải bản ISO gốc Linux Mint Cinnamon
+          sudo apt install -y squashfs-tools xorriso wget
+
+      - name: Download ISO and Setup
+        run: |
           wget -O mint.iso https://mirrors.edge.kernel.org/linuxmint/stable/21.3/linuxmint-21.3-cinnamon-64bit.iso
-          
-          # Giải nén ISO
           mkdir -p iso_work custom_root
-          osirrox -indev mint.iso -extract / iso_work/
+          xorriso -osirrox on -indev mint.iso -extract / iso_work/
           sudo unsquashfs -d custom_root iso_work/casper/filesystem.squashfs
 
-      - name: Customizing OS - Vietnamese, Tran Huu 1952 & Wallpapers
+      - name: Customize OS Settings & Branding
         run: |
-          # 1. CÀI ĐẶT TIẾNG VIỆT FULL VÀ BỘ GÕ TELEX/IBUS
-          sudo chroot custom_root apt-get update
-          sudo chroot custom_root apt-get install -y language-pack-vi language-pack-gnome-vi fcitx5 fcitx5-unikey
-
-          # Thiết lập Tiếng Việt làm ngôn ngữ mặc định hệ thống
-          sudo sed -i 's/LANG=.*/LANG="vi_VN.UTF-8"/' custom_root/etc/default/locale
-          echo 'LC_ALL="vi_VN.UTF-8"' | sudo tee -a custom_root/etc/default/locale
-
-          # 2. ĐỔI TÊN HỆ THỐNG THÀNH "Trần Hữu 1952"
+          # 1. Đổi tên hệ thống thành "Trần Hữu 1952"
           sudo sed -i 's/Linux Mint/Trần Hữu 1952/g' custom_root/etc/lsb-release
           sudo sed -i 's/Linux Mint/Trần Hữu 1952/g' custom_root/etc/os-release
 
-          # 3. THAY ÁNH NỀN CƯƠNG THI THÚC THÚC
+          # 2. Xử lý ảnh nền và logo
           sudo mkdir -p custom_root/usr/share/backgrounds/tranhuu/
-          sudo cp wallpaper.png custom_root/usr/share/backgrounds/tranhuu/wallpaper.png
-          
-          # Cấu hình giao diện + Logo + Tiếng Việt mặc định
-          sudo mkdir -p custom_root/etc/skel/.config/dconf/
+          if [ -f "wallpaper.png" ]; then
+            sudo cp wallpaper.png custom_root/usr/share/backgrounds/tranhuu/wallpaper.png
+          fi
+
+          if [ -f "logo.png" ]; then
+            sudo cp logo.png custom_root/usr/share/pixmaps/tranhuu-logo.png
+          fi
+
+          # 3. Tạo cấu hình dconf cho giao diện
           sudo mkdir -p custom_root/usr/share/glib-2.0/schemas/
-          
           cat <<EOF | sudo tee custom_root/usr/share/glib-2.0/schemas/99_tranhuu_custom.gschema.override
           [org.cinnamon.desktop.background]
           picture-uri='file:///usr/share/backgrounds/tranhuu/wallpaper.png'
           picture-options='zoom'
 
           [org.cinnamon]
-          menu-icon='/usr/share/pixmaps/tranhuu-logo.png'
           menu-text='Trần Hữu 1952'
           EOF
 
-          # 4. THAY LOGO START MENU BẰNG HÌNH BẠN
-          sudo cp logo.png custom_root/usr/share/pixmaps/tranhuu-logo.png
-
-          # Biến đổi cấu hình hệ thống
-          sudo chroot custom_root glib-compile-schemas /usr/share/glib-2.0/schemas/
+          sudo chroot custom_root glib-compile-schemas /usr/share/glib-2.0/schemas/ || true
 
       - name: Repackage ISO
         run: |
-          # Nén lại hệ thống thành file ISO mới
           sudo mksquashfs custom_root iso_work/casper/filesystem.squashfs -comp xz -noappend
           cd iso_work
-          sudo genisoimage -o ../TranHuu1952-Linux-VN.iso -b casper/isolinux.bin -c casper/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -J -R -V "TranHuu1952" .
+          sudo xorriso -as mkisofs -r \
+            -V "TranHuu1952" \
+            -o ../TranHuu1952-Linux.iso \
+            -J -l -b casper/isolinux.bin -c casper/boot.cat \
+            -no-emul-boot -boot-load-size 4 -boot-info-table .
 
-      - name: Upload Finished ISO
+      - name: Upload ISO Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TranHuu1952-Linux-VietHoa-ISO
-          path: ./TranHuu1952-Linux-VN.iso
+          name: TranHuu1952-Linux-ISO
+          path: ./TranHuu1952-Linux.iso
