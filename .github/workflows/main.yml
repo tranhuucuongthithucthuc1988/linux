@@ -1,4 +1,4 @@
-name: Build Custom Linux Mint ISO
+name: Build Custom Linux Mint - Tran Huu 1952
 
 on:
   workflow_dispatch:
@@ -7,18 +7,60 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Download ISO and Setup
+      - name: Install Tools and Extract ISO
         run: |
           sudo apt update
-          sudo apt install -y wget
-          # Tải Linux Mint Cinnamon gốc
+          sudo apt install -y squashfs-tools genisoimage wget
+          # Tải bản ISO gốc Linux Mint Cinnamon
           wget -O mint.iso https://mirrors.edge.kernel.org/linuxmint/stable/21.3/linuxmint-21.3-cinnamon-64bit.iso
+          
+          # Giải nén ISO
+          mkdir -p iso_work custom_root
+          osirrox -indev mint.iso -extract / iso_work/
+          sudo unsquashfs -d custom_root iso_work/casper/filesystem.squashfs
 
-      - name: Upload ISO Artifact
+      - name: Customizing OS - Tran Huu 1952 & Wallpapers
+        run: |
+          # 1. Đổi tên hệ thống thành "Trần Hữu 1952"
+          sudo sed -i 's/Linux Mint/Trần Hữu 1952/g' custom_root/etc/lsb-release
+          sudo sed -i 's/Linux Mint/Trần Hữu 1952/g' custom_root/etc/os-release
+
+          # 2. Thay Ảnh nền Cương Thi Thúc Thúc
+          sudo mkdir -p custom_root/usr/share/backgrounds/tranhuu/
+          sudo cp wallpaper.png custom_root/usr/share/backgrounds/tranhuu/wallpaper.png
+          
+          # Cấu hình làm Wallpaper mặc định
+          sudo mkdir -p custom_root/etc/skel/.config/dconf/
+          sudo mkdir -p custom_root/usr/share/glib-2.0/schemas/
+          
+          cat <<EOF | sudo tee custom_root/usr/share/glib-2.0/schemas/99_tranhuu_custom.gschema.override
+          [org.cinnamon.desktop.background]
+          picture-uri='file:///usr/share/backgrounds/tranhuu/wallpaper.png'
+          picture-options='zoom'
+
+          [org.cinnamon]
+          menu-icon='/usr/share/pixmaps/tranhuu-logo.png'
+          menu-text='Trần Hữu 1952'
+          EOF
+
+          # 3. Thay Logo Start Menu bằng hình Chân dung của bạn
+          sudo cp logo.png custom_root/usr/share/pixmaps/tranhuu-logo.png
+
+          # Biến đổi cấu hình hệ thống
+          sudo chroot custom_root glib-compile-schemas /usr/share/glib-2.0/schemas/
+
+      - name: Repackage ISO
+        run: |
+          # Nén lại hệ thống thành file ISO mới
+          sudo mksquashfs custom_root iso_work/casper/filesystem.squashfs -comp xz -noappend
+          cd iso_work
+          sudo genisoimage -o ../TranHuu1952-Linux.iso -b casper/isolinux.bin -c casper/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -J -R -V "TranHuu1952" .
+
+      - name: Upload Finished ISO
         uses: actions/upload-artifact@v4
         with:
-          name: Custom-Linux-Mint-ISO
-          path: ./mint.iso
+          name: TranHuu1952-Linux-ISO
+          path: ./TranHuu1952-Linux.iso
