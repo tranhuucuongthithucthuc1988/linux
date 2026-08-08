@@ -8,16 +8,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Download ISO and Customize
+      - name: Download ISO and Setup
         run: |
           sudo apt update
-          sudo apt install -y cubic
-          echo "Starting build process..."
+          sudo apt install -y wget
+          # Tải Linux Mint Cinnamon gốc
+          wget -O mint.iso https://mirrors.edge.kernel.org/linuxmint/stable/21.3/linuxmint-21.3-cinnamon-64bit.iso
 
-      - name: Upload ISO
-        uses: actions/upload-artifact@v3
+      - name: Upload ISO Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: Custom-Linux-Mint-ISO
-          path: ./*.iso
+          path: ./mint.iso
